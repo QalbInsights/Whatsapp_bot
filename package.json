@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-gemini-bot",
+  "version": "1.0.0",
+  "description": "A WhatsApp bot using Gemini API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Aatif Shafi",
+  "license": "MIT",
+  "dependencies": {
+    "@adiwajshing/baileys": "5.0.0",
+    "@hapi/boom": "10.0.1",
+    "@whiskeysockets/baileys": "^6.5.0",
+    "dotenv": "16.3.1",
+    "express": "^5.1.0",
+    "node-fetch": "3.3.2",
+    "pino": "8.16.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
