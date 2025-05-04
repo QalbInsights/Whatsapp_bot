@@ -1,13 +1,12 @@
-import { default as makeWASocket, DisconnectReason } from '@whiskeysockets/baileys'
-import { Boom } from '@hapi/boom'
-import { useMultiFileAuthState } from '@whiskeysockets/baileys'
-import fs from 'fs'
-import P from "pino"
-import { keepAlive } from './keep_alive.js'
+import { default as makeWASocket, DisconnectReason } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
+import { useMultiFileAuthState } from '@whiskeysockets/baileys';
+import fs from 'fs';
+import P from "pino";
+import { keepAlive } from './keep_alive.js';
 
 // Start the keep-alive server
 keepAlive();
-
 
 const forceLog = (...args) => {
     process.stdout.write(args.join(' ') + '\n');
@@ -15,14 +14,18 @@ const forceLog = (...args) => {
 
 forceLog('Bot starting...\n');
 
+let isTyping = false; // Track whether the user is typing
+
 async function connectToWhatsApp() {
     try {
+        // Check if the auth directory exists, otherwise create it
         if (!fs.existsSync('./auth')) {
             fs.mkdirSync('./auth');
         }
 
         const { state, saveCreds } = await useMultiFileAuthState('auth');
 
+        // Create WhatsApp socket instance
         const sock = makeWASocket.default({
             auth: state,
             printQRInTerminal: true,
@@ -33,19 +36,34 @@ async function connectToWhatsApp() {
             qrTimeout: 60000,
         });
 
+        // Handle connection status updates
         sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
-            if(connection === 'close') {
+            if (connection === 'close') {
                 const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                if(shouldReconnect) {
+                if (shouldReconnect) {
                     await connectToWhatsApp();
                 }
-            } else if(connection === 'open') {
+            } else if (connection === 'open') {
                 forceLog('Connected to WhatsApp!\n');
             }
         });
 
+        // Save credentials when updated
         sock.ev.on('creds.update', saveCreds);
 
+        // Monitor presence to check if you're typing
+        sock.ev.on('presence.update', (presence) => {
+            if (presence.key.remoteJid === '9103835046@s.whatsapp.net') {
+                // If your presence status is typing, set isTyping to true
+                if (presence.type === 'composing' || presence.type === 'recording') {
+                    isTyping = true;
+                } else {
+                    isTyping = false;
+                }
+            }
+        });
+
+        // Handle incoming messages
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
             console.log('Received message:', type);
             const msg = messages[0];
@@ -59,6 +77,12 @@ async function connectToWhatsApp() {
             if (isGroup) {
                 console.log('Skipping group message');
                 return; // Skip auto-reply for group messages
+            }
+
+            // Only send auto-reply if you're not typing
+            if (isTyping) {
+                console.log('Bot detected that you are typing, no auto-reply sent');
+                return; // Don't send auto-reply if you're typing
             }
 
             try {
